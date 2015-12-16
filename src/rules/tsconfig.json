@@ -56,6 +56,7 @@
         "./noUnusedExpressionRule.ts",
         "./noUnusedVariableRule.ts",
         "./noUseBeforeDeclareRule.ts",
+        "./noUselessStatementRule.ts",
         "./noVarKeywordRule.ts",
         "./noVarRequiresRule.ts",
         "./oneLineRule.ts",
