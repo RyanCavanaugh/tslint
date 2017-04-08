@@ -25,13 +25,7 @@ const OPTION_JSX_SINGLE = "jsx-single";
 const OPTION_JSX_DOUBLE = "jsx-double";
 const OPTION_AVOID_ESCAPE = "avoid-escape";
 
-interface Options {
-    quoteMark: string;
-    jsxQuoteMark: string;
-    avoidEscape: boolean;
-}
-
-export class Rule extends Lint.Rules.AbstractRule {
+export class Rule extends Lint.Rules.FastRule {
     /* tslint:disable:object-literal-sort-keys */
     public static metadata: Lint.IRuleMetadata = {
         ruleName: "quotemark",
@@ -73,23 +67,16 @@ export class Rule extends Lint.Rules.AbstractRule {
         return super.isEnabled() && (this.ruleArguments[0] === OPTION_SINGLE || this.ruleArguments[0] === OPTION_DOUBLE);
     }
 
-    public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
+    public register(registrar: Lint.Rules.FastWalkRegistrar) {
         const args = this.ruleArguments;
         const quoteMark = args[0] === OPTION_SINGLE ? "'" : '"';
-        return this.applyWithFunction(sourceFile, walk, {
-            quoteMark,
-            avoidEscape: args.indexOf(OPTION_AVOID_ESCAPE) !== -1,
-            jsxQuoteMark: args.indexOf(OPTION_JSX_SINGLE) !== -1
+        const avoidEscape = args.indexOf(OPTION_AVOID_ESCAPE) !== -1;
+        const jsxQuoteMark = args.indexOf(OPTION_JSX_SINGLE) !== -1
                           ? "'"
-                          : args.indexOf(OPTION_JSX_DOUBLE) ? '"' : quoteMark,
-        });
-    }
-}
+                          : args.indexOf(OPTION_JSX_DOUBLE) ? '"' : quoteMark;
 
-function walk(ctx: Lint.WalkContext<Options>) {
-    return ts.forEachChild(ctx.sourceFile, function cb(node: ts.Node): void {
-        if (node.kind === ts.SyntaxKind.StringLiteral) {
-            const expectedQuoteMark = node.parent!.kind === ts.SyntaxKind.JsxAttribute ? ctx.options.jsxQuoteMark : ctx.options.quoteMark;
+        registrar.on(ts.SyntaxKind.StringLiteral, (ctx, node) => {
+            const expectedQuoteMark = node.parent!.kind === ts.SyntaxKind.JsxAttribute ? jsxQuoteMark : quoteMark;
             const actualQuoteMark = ctx.sourceFile.text[node.end - 1];
             if (actualQuoteMark === expectedQuoteMark) {
                 return;
@@ -97,7 +84,7 @@ function walk(ctx: Lint.WalkContext<Options>) {
             const start = node.getStart(ctx.sourceFile);
             let text = ctx.sourceFile.text.substring(start + 1, node.end - 1);
             if ((node as ts.StringLiteral).text.includes(expectedQuoteMark)) {
-                if (ctx.options.avoidEscape) {
+                if (avoidEscape) {
                     return;
                 }
                 text = text.replace(new RegExp(expectedQuoteMark, "g"), `\\${expectedQuoteMark}`);
@@ -107,7 +94,6 @@ function walk(ctx: Lint.WalkContext<Options>) {
             return ctx.addFailure(start, node.end, Rule.FAILURE_STRING(actualQuoteMark, expectedQuoteMark),
                 new Lint.Replacement(start, node.end - start, expectedQuoteMark + text + expectedQuoteMark),
             );
-        }
-        return ts.forEachChild(node, cb);
-    });
+        });
+    }
 }
