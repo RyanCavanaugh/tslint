@@ -690,7 +690,8 @@ export class SyntaxWalker {
         }
     }
 
+    private visit = (child: ts.Node) => this.visitNode(child);
     protected walkChildren(node: ts.Node) {
-        ts.forEachChild(node, (child) => this.visitNode(child));
+        ts.forEachChild(node, this.visit);
     }
 }

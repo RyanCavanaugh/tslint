@@ -64,11 +64,18 @@ export abstract class AbstractRule implements IRule {
         return this.filterFailures(ctx.failures);
     }
 
+    /**
+     * Returns true if the failure is filtered (i.e. should *not* appear)
+     */
+    public isFailureFiltered(failure: RuleFailure): boolean {
+        return doesIntersect(failure, this.options.disabledIntervals);
+    }
+
     protected filterFailures(failures: RuleFailure[]): RuleFailure[] {
         const result: RuleFailure[] = [];
         for (const failure of failures) {
             // don't add failures for a rule if the failure intersects an interval where that rule is disabled
-            if (!doesIntersect(failure, this.options.disabledIntervals) && !result.some((f) => f.equals(failure))) {
+            if (!this.isFailureFiltered(failure) && !result.some((f) => f.equals(failure))) {
                 result.push(failure);
             }
         }

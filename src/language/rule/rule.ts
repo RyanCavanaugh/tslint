@@ -18,7 +18,8 @@
 import * as ts from "typescript";
 
 import {arrayify, flatMap} from "../../utils";
-import {IWalker} from "../walker";
+
+export { FastWalkContext } from './fastRule';
 
 export interface IRuleMetadata {
     /**
@@ -105,7 +106,6 @@ export interface IRule {
     getOptions(): IOptions;
     isEnabled(): boolean;
     apply(sourceFile: ts.SourceFile): RuleFailure[];
-    applyWithWalker(walker: IWalker): RuleFailure[];
 }
 
 export interface ITypedRule extends IRule {

@@ -16,10 +16,9 @@
  */
 
 import * as ts from "typescript";
-
 import * as Lint from "../index";
 
-export class Rule extends Lint.Rules.AbstractRule {
+export class Rule extends Lint.Rules.FastRule {
     /* tslint:disable:object-literal-sort-keys */
     public static metadata: Lint.IRuleMetadata = {
         ruleName: "class-name",
@@ -35,39 +34,33 @@ export class Rule extends Lint.Rules.AbstractRule {
 
     public static FAILURE_STRING = "Class name must be in pascal case";
 
-    public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-        return this.applyWithWalker(new NameWalker(sourceFile, this.getOptions()));
+    register(context: Lint.Rules.FastWalkRegistrar) {
+        context.on(ts.SyntaxKind.ClassDeclaration, checkClass);
+        context.on(ts.SyntaxKind.InterfaceDeclaration, checkInterface);
     }
 }
 
-class NameWalker extends Lint.RuleWalker {
-    public visitClassDeclaration(node: ts.ClassDeclaration) {
-        // classes declared as default exports will be unnamed
-        if (node.name != null) {
-            const className = node.name.getText();
-            if (!this.isPascalCased(className)) {
-                this.addFailureAtNode(node.name, Rule.FAILURE_STRING);
-            }
-        }
+function checkClass(ctx: Lint.Rules.FastWalkContext, node: ts.ClassDeclaration) {
+    if (node.name === undefined) return;
 
-        super.visitClassDeclaration(node);
+    const className = (node.name as ts.Identifier).text;
+    if (!isPascalCased(className)) {
+        ctx.addFailureAtNode(node.name, Rule.FAILURE_STRING);
+    }
+}
+
+function checkInterface(ctx: Lint.Rules.FastWalkContext, node: ts.InterfaceDeclaration) {
+    const interfaceName = (node.name as ts.Identifier).text;
+    if (!isPascalCased(interfaceName)) {
+        ctx.addFailureAtNode(node.name, Rule.FAILURE_STRING);
+    }
+}
+
+function isPascalCased(name: string) {
+    if (name.length <= 0) {
+        return true;
     }
 
-    public visitInterfaceDeclaration(node: ts.InterfaceDeclaration) {
-        const interfaceName = node.name.getText();
-        if (!this.isPascalCased(interfaceName)) {
-            this.addFailureAtNode(node.name, Rule.FAILURE_STRING);
-        }
-
-        super.visitInterfaceDeclaration(node);
-    }
-
-    private isPascalCased(name: string) {
-        if (name.length <= 0) {
-            return true;
-        }
-
-        const firstCharacter = name.charAt(0);
-        return ((firstCharacter === firstCharacter.toUpperCase()) && name.indexOf("_") === -1);
-    }
+    const firstCharacter = name.charAt(0);
+    return ((firstCharacter === firstCharacter.toUpperCase()) && name.indexOf("_") === -1);
 }

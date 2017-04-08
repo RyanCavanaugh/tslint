@@ -35,6 +35,7 @@ import { findFormatter } from "./formatterLoader";
 import { ILinterOptions, LintResult } from "./index";
 import { IFormatter } from "./language/formatter/formatter";
 import { Fix, IRule, isTypedRule, Replacement, RuleFailure, RuleSeverity } from "./language/rule/rule";
+import { FastRule, FastWalkContext } from "./language/rule/fastRule";
 import * as utils from "./language/utils";
 import { loadRules } from "./ruleLoader";
 import { arrayify, dedent } from "./utils";
@@ -101,13 +102,23 @@ class Linter {
         let hasLinterRun = false;
         let fileFailures: RuleFailure[] = [];
 
+        const fastContext = new FastWalkContext();
+
         if (this.options.fix) {
             for (const rule of enabledRules) {
-                const ruleFailures = this.applyRule(rule, sourceFile);
-                source = this.applyFixes(fileName, source, ruleFailures);
-                sourceFile = this.getSourceFile(fileName, source);
-                fileFailures = fileFailures.concat(ruleFailures);
+                if (rule instanceof FastRule) {
+                    fastContext.addRule(rule);
+                } else {
+                    const ruleFailures = this.applyRule(rule, sourceFile);
+                    source = this.applyFixes(fileName, source, ruleFailures);
+                    sourceFile = this.getSourceFile(fileName, source);
+                    fileFailures = fileFailures.concat(ruleFailures);
+                }
             }
+            const fastFailures = fastContext.execute(sourceFile);
+            source = this.applyFixes(fileName, source, fastFailures);
+            sourceFile = this.getSourceFile(fileName, source);
+            fileFailures = fileFailures.concat(fastFailures);
             hasLinterRun = true;
         }
 
@@ -115,11 +126,16 @@ class Linter {
         if (!hasLinterRun || this.fixes.length > 0) {
             fileFailures = [];
             for (const rule of enabledRules) {
-                const ruleFailures = this.applyRule(rule, sourceFile);
-                if (ruleFailures.length > 0) {
-                    fileFailures = fileFailures.concat(ruleFailures);
+                if (rule instanceof FastRule) {
+                    fastContext.addRule(rule);
+                } else {
+                    const ruleFailures = this.applyRule(rule, sourceFile);
+                    if (ruleFailures.length > 0) {
+                        fileFailures = fileFailures.concat(ruleFailures);
+                    }
                 }
             }
+            fileFailures = fileFailures.concat(fastContext.execute(sourceFile));
         }
         this.failures = this.failures.concat(fileFailures);
 

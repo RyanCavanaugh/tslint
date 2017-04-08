@@ -16,10 +16,9 @@
  */
 
 import * as ts from "typescript";
-
 import * as Lint from "../index";
 
-export class Rule extends Lint.Rules.AbstractRule {
+export class Rule extends Lint.Rules.FastRule {
     /* tslint:disable:object-literal-sort-keys */
     public static metadata: Lint.IRuleMetadata = {
         ruleName: "no-var-keyword",
@@ -36,47 +35,31 @@ export class Rule extends Lint.Rules.AbstractRule {
 
     public static FAILURE_STRING = "Forbidden 'var' keyword, use 'let' or 'const' instead";
 
-    public apply(sourceFile: ts.SourceFile): Lint.RuleFailure[] {
-        const noVarKeywordWalker = new NoVarKeywordWalker(sourceFile, this.getOptions());
-        return this.applyWithWalker(noVarKeywordWalker);
+    register(context: Lint.Rules.FastWalkRegistrar) {
+        context.on(ts.SyntaxKind.VariableStatement, checkVariableStatement);
+        context.on([ts.SyntaxKind.ForStatement, ts.SyntaxKind.ForInStatement, ts.SyntaxKind.ForOfStatement], checkForStatement);
     }
 }
 
-class NoVarKeywordWalker extends Lint.RuleWalker {
-    public visitVariableStatement(node: ts.VariableStatement) {
-        if (!Lint.hasModifier(node.modifiers, ts.SyntaxKind.DeclareKeyword)
-                && !Lint.isBlockScopedVariable(node)) {
-            this.reportFailure(node.declarationList);
-        }
-
-        super.visitVariableStatement(node);
+function checkVariableStatement(ctx: Lint.FastWalkContext, node: ts.VariableStatement) {
+    if (!Lint.hasModifier(node.modifiers, ts.SyntaxKind.DeclareKeyword)
+        && !Lint.isBlockScopedVariable(node)) {
+        reportFailure(ctx, node.declarationList);
     }
+}
 
-    public visitForStatement(node: ts.ForStatement) {
-        this.handleInitializerNode(node.initializer);
-        super.visitForStatement(node);
-    }
+function checkForStatement(ctx: Lint.FastWalkContext, node: ts.ForStatement | ts.ForInStatement | ts.ForOfStatement) {
+    handleInitializerNode(ctx, node.initializer);
+}
 
-    public visitForInStatement(node: ts.ForInStatement) {
-        this.handleInitializerNode(node.initializer);
-        super.visitForInStatement(node);
+function handleInitializerNode(ctx: Lint.FastWalkContext, node: ts.VariableDeclarationList | ts.Expression | undefined) {
+    if (node && node.kind === ts.SyntaxKind.VariableDeclarationList &&
+        !(Lint.isNodeFlagSet(node, ts.NodeFlags.Let) || Lint.isNodeFlagSet(node, ts.NodeFlags.Const))) {
+        reportFailure(ctx, node);
     }
+}
 
-    public visitForOfStatement(node: ts.ForOfStatement) {
-        this.handleInitializerNode(node.initializer);
-        super.visitForOfStatement(node);
-    }
-
-    private handleInitializerNode(node: ts.VariableDeclarationList | ts.Expression | undefined) {
-        if (node && node.kind === ts.SyntaxKind.VariableDeclarationList &&
-                !(Lint.isNodeFlagSet(node, ts.NodeFlags.Let) || Lint.isNodeFlagSet(node, ts.NodeFlags.Const))) {
-            this.reportFailure(node);
-        }
-    }
-
-    private reportFailure(node: ts.Node) {
-        const nodeStart = node.getStart(this.getSourceFile());
-        this.addFailureAt(nodeStart, "var".length, Rule.FAILURE_STRING,
-            this.createReplacement(nodeStart, "var".length, "let"));
-    }
+function reportFailure(ctx: Lint.FastWalkContext, node: ts.Node) {
+    const nodeStart = node.getStart(ctx.sourceFile);
+    ctx.addFailureAt(nodeStart, "var".length, Rule.FAILURE_STRING, new Lint.Replacement(nodeStart, "var".length, "let"));
 }
